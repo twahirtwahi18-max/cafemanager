@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/png" href="favicon.png">
+
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cafe App - Final</title>
+
+<style>
+body { margin: 0; padding: 0; font-family: Arial; background: #f3f3f3; }
+#sidebar { width: 180px; height: 100vh; background: #222; color: white; position: fixed; left: 0; top: 0; padding: 15px; box-sizing: border-box; }
+#sidebar button { width: 100%; padding: 12px; margin-bottom: 10px; background: #444; color: white; border: none; border-radius: 6px; cursor: pointer; }
+#sidebar button:hover { background: #666; }
+#content { margin-left: 200px; padding: 20px; }
+.page { display: none; }
+
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+table,th,td{border:1px solid #aaa;}
+th,td{padding:8px;text-align:center;}
+button{cursor:pointer;}
+</style>
+
+<script>
+// Global menu storage
+let menu = JSON.parse(localStorage.getItem('menu')) || {};
+
+function populateProducts(){
+  menu = JSON.parse(localStorage.getItem('menu')) || {};
+  const ps = document.getElementById('productSelect');
+  if(!ps) return;
+  ps.innerHTML = '<option value="">-- Select Product --</option>';
+  Object.keys(menu).forEach(k => {
+    ps.innerHTML += `<option value="${k}">${menu[k].name} - ₹${menu[k].price.toFixed(2)}</option>`;
+  });
+}
+
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  document.getElementById(id).style.display='block';
+
+  if(id==='page1') populateProducts();
+  if(id==='page3') renderOrders();
+}
+</script>
+</head>
+
+<body>
+
+<div id="sidebar">
+  <button onclick="showPage('page1')">Submit Order</button>
+  <button onclick="showPage('page2')">Menu Editor</button>
+  <button onclick="showPage('page3')">Orders</button>
+</div>
+
+<div id="content">
+<!-- PAGE 1: SUBMIT ORDER -->
+<div id="page1" class="page">
+
+<div class="container" style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:12px;">
+<h2>Submit Order</h2>
+
+<input type="text" id="customerName" placeholder="Customer Name">
+<select id="productSelect"></select>
+<input type="number" id="productQty" placeholder="Quantity" value="" min="1">
+
+<button id="addItemBtn">Add Item</button>
+
+<table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Qty</th>
+<th>Price</th>
+<th>Total</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="orderTable"></tbody>
+</table>
+
+<div class="total-display">Grand Total: ₹<span id="grandTotal">0</span></div>
+
+<button id="submitBtn">Submit Order</button>
+<button onclick="window.print()" style="background:#4CAF50;color:white;">Print Order</button>
+
+</div>
+
+<div id="successPopup" style="display:none;"></div>
+
+<script>
+let orderItems = [];
+
+function addItem(){
+  const key = document.getElementById('productSelect').value;
+  const qty = parseInt(document.getElementById('productQty').value);
+
+  if(!key){ alert('Select product'); return; }
+  if(qty < 1){ alert('Qty must be >= 1'); return; }
+
+  const p = menu[key];
+  orderItems.push({name:p.name, qty, price:p.price, total:p.price * qty});
+  renderOrderTable();
+
+  document.getElementById('productSelect').value='';
+  document.getElementById('productQty').value="";
+}
+
+function renderOrderTable(){
+  let tbody=document.getElementById('orderTable');
+  tbody.innerHTML='';
+  let g=0;
+
+  orderItems.forEach((i,x)=>{
+    g += i.total;
+    tbody.innerHTML += 
+    `<tr>
+      <td>${i.name}</td>
+      <td>${i.qty}</td>
+      <td>₹${i.price.toFixed(2)}</td>
+      <td>₹${i.total.toFixed(2)}</td>
+      <td><button onclick='deleteItem(${x})'>Delete</button></td>
+    </tr>`;
+  });
+
+  document.getElementById('grandTotal').innerText=g.toFixed(2);
+}
+
+function deleteItem(x){
+  orderItems.splice(x,1);
+  renderOrderTable();
+}
+
+function submitOrder(){
+  const name=document.getElementById('customerName').value.trim();
+  if(!name){ alert('Enter customer name'); return; }
+  if(orderItems.length===0){ alert('Add at least one item'); return; }
+
+  const orders=JSON.parse(localStorage.getItem('hotelOrders'))||[];
+  orders.push({
+    customerName:name,
+    items:orderItems,
+    grandTotal:parseFloat(document.getElementById('grandTotal').innerText),
+    time:new Date().toLocaleString()
+  });
+
+  localStorage.setItem('hotelOrders',JSON.stringify(orders));
+
+  orderItems=[];
+  renderOrderTable();
+  document.getElementById('customerName').value='';
+  document.getElementById('productQty').value='';
+  document.getElementById('productSelect').value='';
+  document.getElementById('customerName').focus();
+}
+
+// Enter Key Flow
+['customerName','productSelect','productQty'].forEach((id,i,a)=>{
+  document.getElementById(id).addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      if(id==='productQty'){ addItem(); return; }
+      if(a[i+1]) document.getElementById(a[i+1]).focus();
+    }
+  });
+});
+
+document.getElementById('addItemBtn').onclick=addItem;
+document.getElementById('submitBtn').onclick=submitOrder;
+</script>
+
+</div><!-- PAGE 2: MENU EDITOR -->
+<div id="page2" class="page">
+
+<div class="container" style="max-width:600px;margin:auto;background:white;padding:20px;border-radius:12px;">
+<h2>Menu Editor</h2>
+
+<input type="text" id="newName" placeholder="Item Name">
+<input type="number" id="newPrice" placeholder="Price" min="1">
+<button onclick="addMenuItem()" style="background:#2196F3;color:white;">Add Item</button>
+
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Price</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="menuTable"></tbody>
+</table>
+</div>
+
+<script>
+// Add a new menu item
+function addMenuItem(){
+  let name = document.getElementById("newName").value.trim();
+  let price = parseFloat(document.getElementById("newPrice").value);
+
+  if(!name || price <= 0){
+    alert("Enter valid name & price");
+    return;
+  }
+
+  const id = Date.now();
+  menu[id] = { name, price };
+  localStorage.setItem("menu", JSON.stringify(menu));
+
+  document.getElementById("newName").value = "";
+  document.getElementById("newPrice").value = "";
+
+  loadMenu();
+  populateProducts();
+}
+
+// Inline Edit Mode
+function enableEdit(id){
+  let row = document.getElementById("row_"+id);
+  let name = menu[id].name;
+  let price = menu[id].price;
+
+  row.innerHTML = `
+    <td><input id="editName_${id}" value="${name}" /></td>
+    <td><input id="editPrice_${id}" type="number" value="${price}" min="1"/></td>
+    <td>
+      <button onclick="saveEdit(${id})" style="background:#4CAF50;color:white;">Save</button>
+      <button onclick="loadMenu()">Cancel</button>
+    </td>
+  `;
+}
+
+// Save edited values
+function saveEdit(id){
+  let newName = document.getElementById("editName_"+id).value.trim();
+  let newPrice = parseFloat(document.getElementById("editPrice_"+id).value);
+
+  if(!newName || newPrice <= 0){
+    alert("Enter valid name & price");
+    return;
+  }
+
+  menu[id] = { name:newName, price:newPrice };
+  localStorage.setItem("menu", JSON.stringify(menu));
+
+  loadMenu();
+  populateProducts();
+}
+
+// Delete item
+function deleteMenuItem(id){
+  delete menu[id];
+  localStorage.setItem("menu", JSON.stringify(menu));
+  loadMenu();
+  populateProducts();
+}
+
+// Load menu into table
+function loadMenu(){
+  menu = JSON.parse(localStorage.getItem("menu")) || {};
+  let tbody = document.getElementById("menuTable");
+  tbody.innerHTML = "";
+
+  Object.keys(menu).forEach(id=>{
+    tbody.innerHTML += `
+      <tr id="row_${id}">
+        <td>${menu[id].name}</td>
+        <td>₹${menu[id].price.toFixed(2)}</td>
+        <td>
+          <button onclick="enableEdit(${id})">Edit</button>
+          <button onclick="deleteMenuItem(${id})" style="color:white;background:#d32f2f;">Delete</button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+loadMenu();
+</script>
+
+</div>
+<!-- PAGE 3: ORDERS -->
+<div id="page3" class="page">
+
+<div class="container" style="max-width:900px;margin:auto;background:white;padding:20px;border-radius:12px;">
+<h2>All Orders</h2>
+
+<button onclick="downloadAllOrdersPDF()" style="background:#4CAF50;color:white;padding:6px 10px;border:none;border-radius:6px;margin-bottom:10px;">
+  Download All Orders (PDF)
+</button>
+
+<input type="text" id="searchName" placeholder="Search by customer name" 
+       oninput="renderOrders()" 
+       style="width:100%;padding:8px;margin:10px 0;border-radius:6px;border:1px solid #aaa;">
+
+<table>
+<thead>
+<tr>
+<th>Customer</th>
+<th>Products</th>
+<th>Total</th>
+<th>Time</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="ordersTable"></tbody>
+</table>
+
+</div>
+
+<script>
+// Render all orders
+function renderOrders(){
+  const orders = JSON.parse(localStorage.getItem('hotelOrders')) || [];
+  const tbody = document.getElementById('ordersTable');
+  const search = document.getElementById('searchName').value.toLowerCase();
+
+  tbody.innerHTML = '';
+
+  // newest first
+  orders.slice().reverse().forEach((order, index) => {
+    if(order.customerName.toLowerCase().includes(search)){
+
+      let products = order.items
+        .map(i => `${i.name} x${i.qty} ₹${i.total.toFixed(2)}`)
+        .join('<br>');
+
+      tbody.innerHTML += `
+      <tr>
+        <td>${order.customerName}</td>
+        <td>${products}</td>
+        <td>₹${order.grandTotal.toFixed(2)}</td>
+        <td>${order.time}</td>
+        <td>
+          <button onclick="printOrder(${index})">Print</button>
+          <button onclick="deleteOrder(${index})" style="background:#d32f2f;color:white;">Delete</button>
+          <button onclick="whatsappOrder(${index})" style="background:#25D366;color:white;">WhatsApp</button>
+        </td>
+      </tr>`;
+    }
+  });
+}
+
+// Delete an order
+function deleteOrder(index){
+  const orders = JSON.parse(localStorage.getItem('hotelOrders')) || [];
+  orders.splice(orders.length - 1 - index, 1); // reverse index
+  localStorage.setItem('hotelOrders', JSON.stringify(orders));
+  renderOrders();
+}
+
+// Print order
+function printOrder(index){
+  const orders = JSON.parse(localStorage.getItem('hotelOrders')) || [];
+  const order = orders[orders.length - 1 - index];
+
+  let itemsHTML = order.items
+    .map(i => `${i.name} x${i.qty} @ ₹${i.price.toFixed(2)} = ₹${i.total.toFixed(2)}`)
+    .join('<br>');
+
+  const html = `
+  <html><head><title>Print Order</title></head><body>
+  <h3>Order for ${order.customerName}</h3>
+  <p>${itemsHTML}</p>
+  <p><b>Grand Total: ₹${order.grandTotal.toFixed(2)}</b></p>
+  <p>${order.time}</p>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  w.print();
+}
+
+// WhatsApp
+function whatsappOrder(index){
+  const orders = JSON.parse(localStorage.getItem('hotelOrders')) || [];
+  const order = orders[orders.length - 1 - index];
+
+  let msg = `Order for ${order.customerName}\n`;
+  order.items.forEach(i=>{
+    msg += `${i.name} x${i.qty} = ₹${i.total.toFixed(2)}\n`;
+  });
+  msg += `Grand Total: ₹${order.grandTotal.toFixed(2)}\n${order.time}`;
+
+  const phone = "919188065103"; // change your number
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// PDF Download (single-line format)
+function downloadAllOrdersPDF(){
+  const orders = JSON.parse(localStorage.getItem('hotelOrders')) || [];
+
+  let html = "<h2>All Orders</h2>";
+
+  orders.slice().reverse().forEach(order=>{
+    let line =
+      `${order.customerName} | ` +
+      `${order.items.map(i=>`${i.name} x${i.qty} ₹${i.total.toFixed(2)}`).join(', ')} | ` +
+      `Total: ₹${order.grandTotal.toFixed(2)} | ` +
+      `${order.time}`;
+
+    html += `<p>${line}</p><hr>`;
+  });
+
+  const w = window.open('', '_blank');
+  w.document.write(`<html><body>${html}</body></html>`);
+  w.document.close();
+  w.print();
+}
+
+renderOrders();
+</script>
+
+</div>
+</div> <!-- END OF CONTENT -->
+
+</body>
+</html>
+
